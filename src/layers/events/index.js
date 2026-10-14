@@ -10,7 +10,7 @@ import * as Cesium from 'cesium';
 import {
   EVENTS_OVERLAY_SOURCE_ID,
   buildEventCard,
-  eventListText,
+  eventListParts,
   severityAccent,
 } from './model.js';
 import { snapshotSignature } from './records.js';
@@ -399,18 +399,22 @@ export function createEventsLayer({
               items: [..._eventById.values()]
                 .sort((a, b) => b.severity - a.severity)
                 .slice(0, 24)
-                .map((event) => ({
-                  id: event.id,
-                  lead: String(event.severityLabel || '').toUpperCase(),
-                  // The panel renders `lead` and `text` only, and reuses `text`
-                  // as the tooltip, so the place and time travel with the title.
-                  text: [event.title, eventListText(event)]
-                    .filter(Boolean)
-                    .join(' — '),
-                  active: event.id === _selectedId,
-                  // Selecting a row focuses that event and flies the camera.
-                  params: { focusEventId: event.id },
-                })),
+                .map((event) => {
+                  const line = eventListParts(event);
+                  return {
+                    id: event.id,
+                    lead: String(event.severityLabel || '').toUpperCase(),
+                    // The panel renders `lead` and `text`, and reuses `text` as
+                    // the tooltip, so the place travels with the title. The
+                    // timestamp rides separately so the translation pass owns its
+                    // locale-dependent formatting instead of it being frozen in.
+                    text: [event.title, line.text].filter(Boolean).join(' — '),
+                    stamp: line.stamp,
+                    active: event.id === _selectedId,
+                    // Selecting a row focuses that event and flies the camera.
+                    params: { focusEventId: event.id },
+                  };
+                }),
             }
           : null,
       };

@@ -47,6 +47,12 @@ const rowOf = () =>
       listRows: row.querySelectorAll('.data-row-list-item').length,
       listSample:
         row.querySelector('.data-row-list-text')?.textContent?.trim() || null,
+      // The row's time lives in its own element so the translation pass can
+      // re-format it when the language changes.
+      listDate:
+        row.querySelector('.data-row-list-date')?.textContent?.trim() || null,
+      listDateStamp:
+        row.querySelector('.data-row-list-date')?.dataset?.i18nDate || null,
     };
   });
 

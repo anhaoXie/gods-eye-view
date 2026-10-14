@@ -314,7 +314,7 @@ export function applyTranslations(root = globalThis.document?.body) {
       if (isSkipped(element)) continue;
       translateElementAttributes(element);
     }
-    paintRelativeAges(elements);
+    paintLocalizedTimes(elements);
     if (root === document.body) document.title = t(document.title);
     syncDocumentLang();
   } finally {
@@ -357,7 +357,7 @@ export function revertTranslations(root = globalThis.document?.body) {
         if (english !== value) element.setAttribute(attribute, english);
       }
     }
-    paintRelativeAges(elements);
+    paintLocalizedTimes(elements);
     syncDocumentLang();
   } finally {
     applying = false;
@@ -365,22 +365,41 @@ export function revertTranslations(root = globalThis.document?.body) {
 }
 
 /**
- * Rebuild every declared relative age in the active language.
+ * Rebuild every declared time in the active language.
  *
- * Ages are Intl-formatted, so no catalog can hold them. An element declares its
- * timestamp in `data-i18n-ago` and this pass repaints the text, which keeps ages
- * correct across a language change without waiting for whoever painted them to
- * refresh. Assigning only on a real change keeps the observer settled.
+ * Times are Intl-formatted, so no catalog can hold them. An element declares its
+ * timestamp as `data-i18n-ago` (relative) or `data-i18n-date` (absolute) and
+ * this pass repaints the text, which keeps times correct across a language
+ * change without waiting for whoever painted them to refresh. Assigning only on
+ * a real change keeps the observer settled.
  * @param {Element[]} elements
  */
-function paintRelativeAges(elements) {
+function paintLocalizedTimes(elements) {
   for (const element of elements) {
-    const stamp = Number(element.dataset?.i18nAgo);
+    const ago = Number(element.dataset?.i18nAgo);
+    const date = Number(element.dataset?.i18nDate);
+    const stamp = Number.isFinite(ago) ? ago : date;
     if (!Number.isFinite(stamp)) continue;
-    const age = formatRelativeTime(stamp);
-    if (age && element.textContent !== age) element.textContent = age;
+    const text = Number.isFinite(ago)
+      ? formatRelativeTime(stamp)
+      : formatDateTime(stamp, COMPACT_STAMP);
+    if (text && element.textContent !== text) element.textContent = text;
   }
 }
+
+/**
+ * Compact date and time with an explicit zone.
+ *
+ * Component options rather than `dateStyle`/`timeStyle`, because Intl rejects
+ * combining those with `timeZoneName` and this feed is UTC-only.
+ */
+export const COMPACT_STAMP = Object.freeze({
+  year: '2-digit',
+  month: 'short',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
 
 function syncDocumentLang() {
   const descriptor = getLocaleDescriptor();

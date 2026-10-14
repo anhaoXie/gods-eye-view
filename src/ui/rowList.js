@@ -1,3 +1,5 @@
+import { COMPACT_STAMP, formatDateTime } from '../i18n/index.js';
+
 const set = (node, key, value) => {
   if (node[key] !== value) node[key] = value;
 };
@@ -46,8 +48,31 @@ export function syncRowList(container, list) {
     const text = button.querySelector('.data-row-list-text');
     const leadText = String(item.lead ?? '');
     const bodyText = String(item.text ?? '');
+    const stamp = Number.isFinite(item.stamp) ? item.stamp : null;
     if (lead && lead.textContent !== leadText) lead.textContent = leadText;
-    if (text && text.textContent !== bodyText) text.textContent = bodyText;
+    // A stamped row keeps its label and its time in separate nodes: the label
+    // must stay an exact catalog match, and the time has to be re-formattable in
+    // the active locale (see `data-i18n-date` in src/i18n/index.js).
+    const labelText = stamp === null ? bodyText : `${bodyText} `;
+    if (text && text.textContent !== labelText) text.textContent = labelText;
+    let date = button.querySelector('.data-row-list-date');
+    if (stamp === null) {
+      date?.remove();
+      date = null;
+    } else {
+      if (!date) {
+        date = document.createElement('span');
+        date.className = 'data-row-list-date';
+        button.appendChild(date);
+      }
+      const value = String(stamp);
+      if (date.dataset.i18nDate !== value) date.dataset.i18nDate = value;
+      // Paint it here as well as declaring it: the translation pass only runs on
+      // a language change or a mutation, so a freshly created row would
+      // otherwise show a blank time until the next one.
+      const painted = formatDateTime(stamp, COMPACT_STAMP);
+      if (painted && date.textContent !== painted) date.textContent = painted;
+    }
     set(button, 'disabled', Boolean(item.disabled));
     set(
       button,

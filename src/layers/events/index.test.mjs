@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   EVENTS_OVERLAY_SOURCE_ID,
   buildEventCard,
+  eventListParts,
   eventListText,
   kindLabel,
   severityAccent,
@@ -172,6 +173,37 @@ test('a card carries the event, its accent and a stable id', () => {
   assert.ok(card.details.some((line) => line.includes('Mexico')));
   assert.equal(buildEventCard({ lat: Number.NaN, lon: 0 }), null);
   assert.equal(buildEventCard(null), null);
+});
+
+test('a list row hands its timestamp over instead of formatting it', async () => {
+  // The panel must be able to re-format a row's time when the language changes,
+  // which it cannot do with a date already frozen into the label.
+  const { layer, viewer } = harness({ events: [makeEvent()] });
+  layer.init(viewer);
+  layer.enable();
+  await layer.update(viewer);
+  const item = layer.getRowControls().list.items[0];
+  assert.equal(item.stamp, Date.parse('2026-01-02T03:00:00.000Z'));
+  assert.ok(
+    !/\d{1,2}:\d{2}/.test(item.text),
+    `the label must stay time-free: ${item.text}`,
+  );
+  assert.ok(item.text.includes('RED'), 'but it keeps the level');
+  layer.destroy(viewer);
+});
+
+test('an event with no date carries no stamp to paint', async () => {
+  const { layer, viewer } = harness({ events: [makeEvent({ from: null })] });
+  layer.init(viewer);
+  layer.enable();
+  await layer.update(viewer);
+  const item = layer.getRowControls().list.items[0];
+  assert.equal(item.stamp, null);
+  // The joined form still reads correctly for callers that want one line.
+  const parts = eventListParts(makeEvent({ from: null }));
+  assert.equal(parts.stamp, null);
+  assert.equal(eventListText(makeEvent({ from: null })), parts.text);
+  layer.destroy(viewer);
 });
 
 test('the list line names the level, place and time', () => {

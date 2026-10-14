@@ -105,10 +105,28 @@ export function buildEventCard(event) {
  * @param {object} event
  * @returns {string}
  */
-export function eventListText(event) {
+/**
+ * The label and timestamp of a panel row line.
+ *
+ * Split so a caller can hand the timestamp to the translation pass instead of
+ * freezing it into a string; `eventListText` joins them for callers that want a
+ * single line.
+ * @param {object} event
+ * @returns {{text: string, stamp: number|null}}
+ */
+export function eventListParts(event) {
   const place = event.country || event.summary || '';
-  const when = formatDateTime(event.from, COMPACT);
-  return [String(event.severityLabel || '').toUpperCase(), place, when]
-    .filter(Boolean)
-    .join(' · ');
+  const stamp = Date.parse(event.from || '');
+  return {
+    text: [String(event.severityLabel || '').toUpperCase(), place]
+      .filter(Boolean)
+      .join(' · '),
+    stamp: Number.isFinite(stamp) ? stamp : null,
+  };
+}
+
+export function eventListText(event) {
+  const { text, stamp } = eventListParts(event);
+  const when = stamp === null ? '' : formatDateTime(stamp, COMPACT);
+  return [text, when].filter(Boolean).join(' · ');
 }
