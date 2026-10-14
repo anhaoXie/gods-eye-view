@@ -1,15 +1,31 @@
 import { weatherTileUrl } from './source.js';
 import { orderWeatherImagery } from './imageryOrder.js';
 import { imageryHostStatus } from './imageryHost.js';
-import { createRasterTileProvider } from './rasterTiles.js';
+import { createRasterTileProvider, nativeTileLevel } from './rasterTiles.js';
 import { createWeatherShell } from './shellRendering.js';
 import { readResponseBytesCapped } from '../../sources/httpBody.js';
 import {
   acquireInfraredMosaic,
   processInfraredImage,
 } from './infraredImage.js';
-// Bounded display detail for the hourly, approximately 3 km global product.
-const GLOBAL_TILE_MAXIMUM_LEVEL = 3;
+// With 256 px tiles the ground resolution at level z is about
+// 40075 km / (256 · 2^z): 2.45 km at level 6 and 1.22 km at level 7. Each
+// product is capped at the level whose pixels match its documented source
+// resolution, because deeper tiles only interpolate the same field. The former
+// flat cap of 6 drew radar at 2.45 km per pixel while MRMS resolves about 1 km,
+// which is why zooming in looked soft.
+const NATIVE_TILE_LEVEL = Object.freeze({
+  // ~8 km strike-density grid: level 6 already oversamples it.
+  lightning: 6,
+  // ~1 km MRMS base reflectivity.
+  radar: 7,
+  // ~2 km GOES-19/18 Band 14.
+  'clouds-regional': 7,
+  // ~3 km global infrared mosaic. It is drawn from one whole-extent image
+  // rather than tiles (`global` below), so this only guards the tile path.
+  clouds: 7,
+});
+const DEFAULT_TILE_LEVEL = 6;
 // Six decoded 2048×1024 canvases (8 MiB each) bound the cache below 50 MiB.
 const MAX_MOSAICS = 6;
 const MAX_PREFETCH_TILES = 8;
@@ -40,7 +56,7 @@ function createGlobeRendering({
   function profile(product) {
     return {
       tileSize: 256,
-      maximumLevel: product === 'clouds' ? GLOBAL_TILE_MAXIMUM_LEVEL : 6,
+      maximumLevel: NATIVE_TILE_LEVEL[product] ?? DEFAULT_TILE_LEVEL,
     };
   }
 
@@ -347,7 +363,12 @@ function createGlobeRendering({
               texture,
               rectangle,
               tilingScheme,
-              maximumLevel: GLOBAL_TILE_MAXIMUM_LEVEL,
+              // Derived from the decoded image so a larger source is shown at
+              // its true resolution instead of being downsampled by the tiler.
+              maximumLevel: nativeTileLevel(
+                texture.width,
+                nextProfile.tileSize,
+              ),
               tileSize: nextProfile.tileSize,
               credit,
               createCanvas,

@@ -123,8 +123,11 @@ export function createEventsLayer({
         color: cesium.Color.fromCssColorString(accent),
         outlineColor: cesium.Color.fromCssColorString('#05090d'),
         outlineWidth: 1.5,
-        // Hazards stay visible over terrain and under the horizon line.
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        // A finite distance, not Infinity: disabling the depth test outright
+        // draws every marker over the globe itself, so hazards on the far side
+        // show through the planet. Within this range the test is skipped, which
+        // is what keeps a marker crisp against terrain instead of z-fighting.
+        disableDepthTestDistance: 2500,
       },
       properties: { eventId: event.id, severity: event.severity },
     });

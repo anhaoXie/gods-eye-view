@@ -65,7 +65,9 @@ test('real Cesium geographic provider crops level 0/1 tiles from a decoded canva
   assert.ok(provider.tilingScheme instanceof Cesium.GeographicTilingScheme);
   assert.equal(provider.rectangle, Cesium.Rectangle.MAX_VALUE);
   assert.equal(provider.minimumLevel, 0);
-  assert.equal(provider.maximumLevel, 2);
+  // Derived from the texture: this fixture is 720 px wide, so level 1 is the
+  // deepest level that still has at least one source pixel per output pixel.
+  assert.equal(provider.maximumLevel, 1);
   assert.equal(provider.tileWidth, 256);
   assert.equal(provider.tileHeight, 256);
   assert.equal(provider.ready, true);

@@ -159,8 +159,14 @@ test('geographic tile coordinates use a 2x1 root and reject wrapping/out-of-rang
     weatherTileBounds(6, 127, 63),
     [177.1875, -90, 180, -87.1875],
   );
+  // Level 7 is the deepest served: about 1.22 km per pixel, which is the finest
+  // source resolution among the products.
+  assert.deepEqual(
+    weatherTileBounds(7, 255, 127),
+    [178.59375, -90, 180, -88.59375],
+  );
   for (const coords of [
-    [7, 0, 0],
+    [8, 0, 0],
     [0, 2, 0],
     [0, 0, 1],
     [-1, 0, 0],
@@ -225,7 +231,7 @@ test('invalid enums, arbitrary destinations and malformed tile inputs never fetc
     tile() + '&host=169.254.169.254',
     tile() + '&bbox=0,0,1,1',
     tile() + '&layers=other',
-    tile({ z: 7 }),
+    tile({ z: 8 }),
     tile({ x: 2 }),
     tile({ y: 1 }),
     tile({ z: '00' }),

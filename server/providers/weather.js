@@ -198,11 +198,21 @@ export function weatherImageBbox(value) {
 }
 
 /** GeographicTilingScheme's two longitude tiles and one latitude tile at level zero. */
+/**
+ * Deepest tile level the proxy will serve.
+ *
+ * Level 7 is about 1.22 km per pixel with 256 px tiles, which matches the finest
+ * documented source resolution among the products (radar, about 1 km). The client
+ * caps each product at the level its own data justifies, so this must stay at
+ * least as deep as the deepest of those caps or its tiles would 400.
+ */
+const MAX_TILE_LEVEL = 7;
+
 export function weatherTileBounds(z, x, y) {
   if (
     ![z, x, y].every(Number.isInteger) ||
     z < 0 ||
-    z > 6 ||
+    z > MAX_TILE_LEVEL ||
     x < 0 ||
     y < 0 ||
     x >= 2 ** (z + 1) ||

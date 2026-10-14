@@ -2228,7 +2228,7 @@ test('layer warms the next advertised observation only after a successful playin
 });
 
 for (const product of ['radar', 'clouds-regional', 'lightning']) {
-  test(`${product} on the globe host uses 256 px tiles to level 6`, async (t) => {
+  test(`${product} on the globe host uses 256 px tiles to its native level`, async (t) => {
     const collection = new ImageryLayerCollection();
     const h = renderingHarness({
       getHost: () => ({ collection, kind: 'globe' }),
@@ -2242,7 +2242,13 @@ for (const product of ['radar', 'clouds-regional', 'lightning']) {
     const options = h.providers[0].options;
     assert.equal(options.tileWidth, 256);
     assert.equal(options.tileHeight, 256);
-    assert.equal(options.maximumLevel, 6);
+    assert.equal(
+      options.maximumLevel,
+      // Each product is capped where its pixels match its documented source
+      // resolution: level 6 is about 2.45 km per pixel, level 7 about 1.22 km.
+      product === 'lightning' ? 6 : 7,
+      `${product} tile cap`,
+    );
     assert.equal(
       new URL(options.url, 'https://example.test').searchParams.get('size'),
       '256',

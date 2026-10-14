@@ -327,6 +327,26 @@ test('an unchanged feed does not churn entities', async () => {
   layer.destroy(viewer);
 });
 
+test('hazard markers stay depth-tested so the far side of the globe is hidden', async () => {
+  const { layer, viewer } = harness({ events: [makeEvent({ severity: 3 })] });
+  layer.init(viewer);
+  layer.enable();
+  await layer.update(viewer);
+  const { point } = viewer.added[0].entities.list[0];
+  // Infinity would skip the depth test entirely and draw every marker over the
+  // planet, revealing hazards on the far side.
+  assert.notEqual(point.disableDepthTestDistance, Number.POSITIVE_INFINITY);
+  assert.ok(
+    Number.isFinite(point.disableDepthTestDistance),
+    'a finite distance keeps the depth test active at globe scale',
+  );
+  assert.ok(
+    point.disableDepthTestDistance > 0,
+    'and a positive one still avoids z-fighting against terrain up close',
+  );
+  layer.destroy(viewer);
+});
+
 test('update reports failure through stats instead of throwing', async () => {
   const { layer, viewer } = harness(async () => {
     throw new Error('upstream exploded');
