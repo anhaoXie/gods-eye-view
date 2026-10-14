@@ -130,11 +130,9 @@ export function createEventsLayer({
     if (!_viewer || !click?.position) return;
     if (pointer?.isPointerFree && !pointer.isPointerFree()) return;
 
-    const cardHit = overlayHost?.hitTest?.(
-      click.position.x,
-      click.position.y,
-      { sourceId: EVENTS_OVERLAY_SOURCE_ID },
-    );
+    const cardHit = overlayHost?.hitTest?.(click.position.x, click.position.y, {
+      sourceId: EVENTS_OVERLAY_SOURCE_ID,
+    });
     if (cardHit) return;
 
     const picked = _viewer.scene.pick(click.position);
@@ -308,7 +306,11 @@ export function createEventsLayer({
         legend: [
           { label: 'Red alert', color: severityAccent(3), count: counts[3] },
           { label: 'Orange alert', color: severityAccent(2), count: counts[2] },
-          { label: 'Green / advisory', color: severityAccent(1), count: counts[1] },
+          {
+            label: 'Green / advisory',
+            color: severityAccent(1),
+            count: counts[1],
+          },
         ],
         list: _eventById.size
           ? {

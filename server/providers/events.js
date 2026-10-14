@@ -126,7 +126,10 @@ export function parseGdacs(payload) {
       type: GDACS_KINDS[properties.eventtype] || 'hazard',
       source: 'GDACS',
       title: trim(properties.name || properties.description, 180),
-      summary: trim(properties.htmldescription ? '' : properties.description, 260),
+      summary: trim(
+        properties.htmldescription ? '' : properties.description,
+        260,
+      ),
       severity,
       severityLabel: trim(properties.alertlevel, 12).toLowerCase() || 'unknown',
       lon: anchor.lon,
@@ -159,7 +162,8 @@ export function parseUsgs(payload) {
       title: trim(properties.title || properties.place, 180),
       summary: trim(properties.place, 200),
       severity: quakeSeverity(magnitude),
-      severityLabel: magnitude === null ? 'unknown' : `M${magnitude.toFixed(1)}`,
+      severityLabel:
+        magnitude === null ? 'unknown' : `M${magnitude.toFixed(1)}`,
       magnitude,
       lon,
       lat,
@@ -185,7 +189,9 @@ export function parseNws(payload) {
     events.push({
       id: `nws-${feature.id || properties.id}`,
       kind: 'weather',
-      type: trim(properties.event || 'weather', 60).toLowerCase().replace(/\s+/g, '-'),
+      type: trim(properties.event || 'weather', 60)
+        .toLowerCase()
+        .replace(/\s+/g, '-'),
       source: 'NWS',
       title: trim(properties.event || properties.headline, 180),
       summary: trim(properties.headline || properties.areaDesc, 260),
@@ -219,7 +225,10 @@ function rankEvents(events) {
  * @param {{fetchImpl?: typeof fetch, now?: () => number}} [options]
  * @returns {Promise<object>} Normalized feed payload.
  */
-export async function collectEvents({ fetchImpl = fetch, now = () => Date.now() } = {}) {
+export async function collectEvents({
+  fetchImpl = fetch,
+  now = () => Date.now(),
+} = {}) {
   const sources = [
     { id: 'GDACS', url: GDACS_URL, headers: {}, parse: parseGdacs },
     {
@@ -248,14 +257,21 @@ export async function collectEvents({ fetchImpl = fetch, now = () => Date.now() 
           signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
         });
         if (!response.ok)
-          return { id: source.id, ok: false, reason: `HTTP ${response.status}` };
+          return {
+            id: source.id,
+            ok: false,
+            reason: `HTTP ${response.status}`,
+          };
         const payload = await response.json();
         return { id: source.id, ok: true, events: source.parse(payload) };
       } catch (error) {
         return {
           id: source.id,
           ok: false,
-          reason: error?.name === 'TimeoutError' ? 'timeout' : error?.message || 'failed',
+          reason:
+            error?.name === 'TimeoutError'
+              ? 'timeout'
+              : error?.message || 'failed',
         };
       }
     }),

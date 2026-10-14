@@ -1508,7 +1508,11 @@ export class StyleManager extends ShellFacade {
    * @returns {void}
    */
   _focusHazard(event) {
-    if (!this.viewer || !Number.isFinite(event?.lat) || !Number.isFinite(event?.lon))
+    if (
+      !this.viewer ||
+      !Number.isFinite(event?.lat) ||
+      !Number.isFinite(event?.lon)
+    )
       return;
     this.viewer.camera.flyTo({
       destination: Cesium.Cartesian3.fromDegrees(event.lon, event.lat, 350_000),

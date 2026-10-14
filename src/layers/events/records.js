@@ -32,7 +32,9 @@ export function normalizeEvent(raw) {
     source: typeof raw.source === 'string' ? raw.source : 'unknown',
     title: typeof raw.title === 'string' && raw.title ? raw.title : id,
     summary: typeof raw.summary === 'string' ? raw.summary : '',
-    severity: Number.isFinite(severity) ? Math.max(0, Math.min(3, severity)) : 0,
+    severity: Number.isFinite(severity)
+      ? Math.max(0, Math.min(3, severity))
+      : 0,
     severityLabel:
       typeof raw.severityLabel === 'string' ? raw.severityLabel : 'unknown',
     magnitude: Number.isFinite(Number(raw.magnitude))

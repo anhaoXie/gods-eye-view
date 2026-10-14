@@ -32,7 +32,10 @@ export function kindLabel(kind) {
 function formatWindow(from, to) {
   const start = Date.parse(from || '');
   if (!Number.isFinite(start)) return null;
-  const startText = new Date(start).toISOString().slice(0, 16).replace('T', ' ');
+  const startText = new Date(start)
+    .toISOString()
+    .slice(0, 16)
+    .replace('T', ' ');
   const end = Date.parse(to || '');
   if (!Number.isFinite(end)) return `${startText}Z`;
   const endText = new Date(end).toISOString().slice(0, 16).replace('T', ' ');
@@ -53,8 +56,11 @@ export function buildEventCard(event) {
   if (Number.isFinite(event.magnitude))
     details.push(`Magnitude ${event.magnitude.toFixed(1)}`);
   if (event.country) details.push(event.country);
-  if (event.summary && event.summary !== event.title) details.push(event.summary);
-  details.push(`${event.source} · ${String(event.severityLabel || '').toUpperCase()}`);
+  if (event.summary && event.summary !== event.title)
+    details.push(event.summary);
+  details.push(
+    `${event.source} · ${String(event.severityLabel || '').toUpperCase()}`,
+  );
 
   return {
     id: `${EVENTS_OVERLAY_SOURCE_ID}:${event.id}`,

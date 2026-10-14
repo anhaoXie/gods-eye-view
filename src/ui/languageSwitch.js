@@ -57,12 +57,7 @@ function createMenu(menu, label) {
  * @param {{button?: HTMLElement|null, menu?: HTMLElement|null, label?: HTMLElement|null, onAnnounce?: (message: string) => void}} [options]
  * @returns {{destroy: () => void, sync: () => void, open: () => void, close: () => void}}
  */
-export function bindLanguageSwitch({
-  button,
-  menu,
-  label,
-  onAnnounce,
-} = {}) {
+export function bindLanguageSwitch({ button, menu, label, onAnnounce } = {}) {
   if (!button || !menu || !label) {
     return { destroy() {}, sync() {}, open() {}, close() {} };
   }

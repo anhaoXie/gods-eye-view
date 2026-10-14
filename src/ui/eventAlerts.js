@@ -119,7 +119,9 @@ export function createEventAlerts({
 
     const place = doc.createElement('p');
     place.className = 'event-alert-place';
-    place.textContent = [event.country, event.source].filter(Boolean).join(' · ');
+    place.textContent = [event.country, event.source]
+      .filter(Boolean)
+      .join(' · ');
 
     const actions = doc.createElement('div');
     actions.className = 'event-alert-actions';
