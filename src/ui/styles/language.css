@@ -1,0 +1,110 @@
+/* ── Language switcher (top-center dock) ─────── */
+
+#language-switch {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+#language-btn {
+  /* Inherits the 36px circle from `#top-center-actions button`. */
+  position: relative;
+}
+
+.language-btn-label {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+#language-btn.open {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+#language-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 148px;
+  padding: 6px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+#language-menu[hidden] {
+  display: none;
+}
+
+/* These options live inside `#top-center-actions`, whose `button` rule makes
+   every button a 36px circle. Restore a full-width menu row. */
+#top-center-actions .language-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  height: auto;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transform: none;
+}
+
+#top-center-actions .language-option:hover,
+#top-center-actions .language-option:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--glass-border-hover);
+  color: var(--text-primary);
+  transform: none;
+}
+
+#top-center-actions .language-option.active {
+  color: var(--accent);
+}
+
+#top-center-actions .language-option:active {
+  transform: none;
+}
+
+.language-option-native {
+  white-space: nowrap;
+}
+
+.language-option-check {
+  min-width: 1em;
+  font-size: 12px;
+  text-align: right;
+}
+
+/* Cyber theme parity with the surrounding dock buttons. */
+:root[data-ui-theme='cyber'] #language-menu {
+  border-radius: 2px;
+}
+
+:root[data-ui-theme='cyber'] #top-center-actions .language-option {
+  border-radius: 1px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+:root[data-ui-theme='cyber'] #top-center-actions .language-option.active {
+  color: var(--accent);
+  text-shadow: 0 0 8px rgba(0, 212, 255, 0.45);
+}
