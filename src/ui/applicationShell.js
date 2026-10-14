@@ -22,7 +22,7 @@ import { LocationNavigation } from './locationNavigation.js';
 import { bindClearLayersControl } from './layers.js';
 import { bindLanguageSwitch } from './languageSwitch.js';
 import { createEventAlerts } from './eventAlerts.js';
-import { t } from '../i18n/index.js';
+import { getLocale, t } from '../i18n/index.js';
 import { bindCameraOrientationControls } from './cameraOrientationControls.js';
 import { createMapSourceControls } from './mapSource.js';
 import { STYLES } from './effects.js';
@@ -434,6 +434,9 @@ export class StyleManager extends ShellFacade {
         ]),
       );
     });
+    // A shared link carries the interface language, so the recipient opens the
+    // same one instead of their stored preference.
+    this.shareLinkManager.setLocaleProvider(() => getLocale());
     this._shareState = createStateChannel(() => this._readShareState());
     this._shareState.subscribe(
       ({ state }) => {

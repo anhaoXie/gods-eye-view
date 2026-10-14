@@ -27,6 +27,10 @@ const STYLE_TO_URL = STYLE_URL_NAMES;
 const SHARE_UI_STATE_PARAM = 'ui';
 const SHARE_STYLE_PARAMS_PARAM = 'sp';
 const SHARE_CREATED_AT_PARAM = 'at';
+/** Interface language, so a shared link opens in the sharer's language. */
+const SHARE_LOCALE_PARAM = 'lang';
+/** The language whose absence already means itself; never written. */
+const SHARE_DEFAULT_LOCALE = 'en';
 
 const SHARE_PANEL_STATE_REGISTRY = Object.freeze([
   { id: 'control-panel', token: 'c', pinnable: true },
@@ -123,6 +127,7 @@ export class ShareLinkManager {
     this._layerStateProvider = null;
     this._panelStateProvider = null;
     this._styleParamStateProvider = null;
+    this._localeProvider = null;
     this._initialRestorePending = false;
     this._restoreAuthority = {
       visual: 0,
@@ -413,6 +418,17 @@ export class ShareLinkManager {
       typeof provider === 'function' ? provider : null;
   }
 
+  /**
+   * Install the interface-language source used by URL generation.
+   *
+   * A provider rather than an i18n import, so this module keeps owning URL
+   * shape alone. The reader already prefers `?lang=` and hash `lang` over
+   * stored preference, so a shared link opens in the sharer's language.
+   */
+  setLocaleProvider(provider) {
+    this._localeProvider = typeof provider === 'function' ? provider : null;
+  }
+
   /** Called only when the durable layer preference model changes. */
   onLayerStateChange() {
     this._scheduleUpdate();
@@ -598,6 +614,13 @@ export class ShareLinkManager {
     // Copy-time metadata is intentionally absent here. `copyLink()` adds a
     // fresh timestamp to its ephemeral URL without aging the live address.
     params.delete(SHARE_CREATED_AT_PARAM);
+    // English is the default, so an absent `lang` already means English and the
+    // link stays short. Any other language is written so the recipient opens the
+    // same one, because an explicit value outranks their stored preference.
+    const locale = this._localeProvider?.();
+    if (typeof locale === 'string' && locale && locale !== SHARE_DEFAULT_LOCALE)
+      params.set(SHARE_LOCALE_PARAM, locale);
+    else params.delete(SHARE_LOCALE_PARAM);
     return params;
   }
 
@@ -622,6 +645,7 @@ export class ShareLinkManager {
     this._layerStateProvider = null;
     this._panelStateProvider = null;
     this._styleParamStateProvider = null;
+    this._localeProvider = null;
     this._onRestore = null;
   }
 }

@@ -314,6 +314,7 @@ export function applyTranslations(root = globalThis.document?.body) {
       if (isSkipped(element)) continue;
       translateElementAttributes(element);
     }
+    paintRelativeAges(elements);
     if (root === document.body) document.title = t(document.title);
     syncDocumentLang();
   } finally {
@@ -356,9 +357,28 @@ export function revertTranslations(root = globalThis.document?.body) {
         if (english !== value) element.setAttribute(attribute, english);
       }
     }
+    paintRelativeAges(elements);
     syncDocumentLang();
   } finally {
     applying = false;
+  }
+}
+
+/**
+ * Rebuild every declared relative age in the active language.
+ *
+ * Ages are Intl-formatted, so no catalog can hold them. An element declares its
+ * timestamp in `data-i18n-ago` and this pass repaints the text, which keeps ages
+ * correct across a language change without waiting for whoever painted them to
+ * refresh. Assigning only on a real change keeps the observer settled.
+ * @param {Element[]} elements
+ */
+function paintRelativeAges(elements) {
+  for (const element of elements) {
+    const stamp = Number(element.dataset?.i18nAgo);
+    if (!Number.isFinite(stamp)) continue;
+    const age = formatRelativeTime(stamp);
+    if (age && element.textContent !== age) element.textContent = age;
   }
 }
 

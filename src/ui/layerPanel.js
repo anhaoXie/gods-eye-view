@@ -160,9 +160,14 @@ export class LayerPanel {
     this._mountRecentImagery();
     // Row extras are rebuilt from layer data, so their Intl-formatted stamps are
     // baked in at build time and would otherwise keep the previous language
-    // until the next feed refresh. A language change re-syncs them.
+    // until the next feed refresh. Repaint synchronously: a language change is
+    // user-visible immediately and must not wait behind the debounced path.
     this._removers.push(
-      onLocaleChange(() => this._scheduleRowControlsRefresh()),
+      onLocaleChange(() => {
+        this._cancelRowControlsRefresh?.();
+        this._cancelRowControlsRefresh = null;
+        this._refreshTogglePanel();
+      }),
     );
     this._renderToggles();
   }
@@ -295,7 +300,7 @@ export class LayerPanel {
 
       const bottomRow = document.createElement('div');
       bottomRow.className = 'data-toggle-meta';
-      bottomRow.textContent = this._buildMetaText(layer);
+      this._renderMeta(bottomRow, layer);
 
       row.appendChild(topRow);
       row.appendChild(bottomRow);
@@ -535,7 +540,7 @@ export class LayerPanel {
 
       const meta = row.querySelector('.data-toggle-meta');
       if (meta) {
-        meta.textContent = this._buildMetaText(layer);
+        this._renderMeta(meta, layer);
       }
 
       this._syncRowControls(
@@ -545,6 +550,41 @@ export class LayerPanel {
       );
     }
     this._refreshWeatherPanel();
+  }
+
+  /**
+   * Paint a row's meta line, keeping the trailing age in its own element.
+   *
+   * The age is Intl-formatted, so it has to be re-rendered whenever the language
+   * changes. Marking it `data-i18n-ago` lets the translation pass repaint it
+   * immediately instead of waiting for this panel's next refresh.
+   * @param {HTMLElement | null} container
+   * @param {object} layer
+   */
+  _renderMeta(container, layer) {
+    if (!container) return;
+    const text = this._buildMetaText(layer);
+    const stamp = layer.stats?.lastUpdate;
+    const document = container.ownerDocument ?? globalThis.document;
+    const ago = stamp ? this._timeAgo(stamp) : t('never');
+    const index = text.lastIndexOf(' · ');
+    // Only split when the tail really is the age; the other branches end in
+    // coverage or error copy that must stay one node.
+    if (
+      !stamp ||
+      typeof document?.createElement !== 'function' ||
+      index < 0 ||
+      text.slice(index + 3) !== ago
+    ) {
+      container.textContent = text;
+      return;
+    }
+    const age = document.createElement('span');
+    age.className = 'data-toggle-meta-ago';
+    age.dataset.i18nAgo = String(stamp);
+    age.textContent = ago;
+    container.textContent = text.slice(0, index + 3);
+    container.append(age);
   }
 
   _buildMetaText(layer) {
