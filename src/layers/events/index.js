@@ -67,6 +67,51 @@ export function createEventsLayer({
   let _lastUpdate = null;
   let _lastError = null;
   let _signature = null;
+  /** Operator filter: minimum severity to draw, 0 showing everything. */
+  let _minSeverity = 0;
+  /** Operator filter: ignore events older than this many hours, 0 for no limit. */
+  let _sinceHours = 0;
+  /** Every accepted event, before the operator's filters are applied. */
+  let _allEvents = [];
+
+  /**
+   * Whether an event survives the operator's filters.
+   *
+   * An event with no usable date is kept: the feed could not prove it is old,
+   * and silently dropping a hazard is worse than showing a stale one.
+   */
+  const passesFilter = (event) => {
+    if (Number(event.severity || 0) < _minSeverity) return false;
+    if (_sinceHours > 0) {
+      const stamp = Date.parse(event.from || '');
+      if (
+        Number.isFinite(stamp) &&
+        stamp < Date.now() - _sinceHours * 3_600_000
+      )
+        return false;
+    }
+    return true;
+  };
+
+  /**
+   * Rebuild the drawn entities from the retained events.
+   *
+   * Selection, stats and the legend all read `_eventById`, so filtering here
+   * keeps every surface honest about what is actually on the globe.
+   */
+  const renderEvents = () => {
+    _eventById.clear();
+    _dataSource?.entities?.removeAll();
+    for (const event of _allEvents) {
+      if (!passesFilter(event)) continue;
+      _eventById.set(event.id, event);
+      _dataSource?.entities?.add(buildEntity(event));
+    }
+    if (_selectedId && !_eventById.has(_selectedId)) {
+      _selectedId = null;
+      publishSelection();
+    }
+  };
 
   const buildEntity = (event) => {
     const accent = severityAccent(event.severity);
@@ -232,13 +277,8 @@ export function createEventsLayer({
         const nextSignature = snapshotSignature(snapshot);
         if (nextSignature !== _signature) {
           _signature = nextSignature;
-          _eventById.clear();
-          _dataSource.entities.removeAll();
-          for (const event of snapshot.events) {
-            _eventById.set(event.id, event);
-            _dataSource.entities.add(buildEntity(event));
-          }
-          if (_selectedId && !_eventById.has(_selectedId)) _selectedId = null;
+          _allEvents = snapshot.events;
+          renderEvents();
         }
         _lastUpdate = Date.now();
         _lastError = null;
@@ -308,9 +348,42 @@ export function createEventsLayer({
         counts[Math.max(0, Math.min(3, event.severity))] += 1;
       }
       return {
-        // No count chips: the panel already renders the count next to the name,
-        // and a "19 red" chip is a dynamic string no catalog can translate. The
-        // legend carries the same information as a translatable label + number.
+        // Filter chips carry ids because the panel reuses chips by key, and
+        // labels that are real catalog keys so they translate like other chrome.
+        chips: [
+          {
+            id: 'events-severity-all',
+            label: 'All',
+            active: _minSeverity === 0,
+            params: { minSeverity: 0 },
+          },
+          {
+            id: 'events-severity-orange',
+            label: 'Orange alert',
+            color: severityAccent(2),
+            active: _minSeverity === 2,
+            params: { minSeverity: 2 },
+          },
+          {
+            id: 'events-severity-red',
+            label: 'Red alert',
+            color: severityAccent(3),
+            active: _minSeverity === 3,
+            params: { minSeverity: 3 },
+          },
+          {
+            id: 'events-window-any',
+            label: 'Any time',
+            active: _sinceHours === 0,
+            params: { sinceHours: 0 },
+          },
+          {
+            id: 'events-window-day',
+            label: 'Today',
+            active: _sinceHours === 24,
+            params: { sinceHours: 24 },
+          },
+        ],
         legend: [
           { label: 'Red alert', color: severityAccent(3), count: counts[3] },
           { label: 'Orange alert', color: severityAccent(2), count: counts[2] },
@@ -344,17 +417,37 @@ export function createEventsLayer({
     },
 
     /**
-     * Apply panel-driven intent. The row list sends `focusEventId` when the
-     * operator picks an event, which selects it, publishes its card and flies
-     * the camera there.
-     * @param {{focusEventId?: string}} [params]
+     * Apply panel-driven intent.
+     *
+     * The row list sends `focusEventId` when the operator picks an event, which
+     * selects it, publishes its card and flies the camera there. The chips send
+     * `minSeverity` and `sinceHours`, which re-filter what is drawn.
+     * @param {{focusEventId?: string, minSeverity?: number, sinceHours?: number}} [params]
      * @returns {boolean} Whether the intent was accepted.
      */
     setParams(params = {}) {
       const focusEventId = params?.focusEventId;
-      if (typeof focusEventId !== 'string' || !focusEventId) return true;
-      // A feed that has moved on no longer holds the id; that is not a failure.
-      selectEvent(focusEventId, { fly: true });
+      if (typeof focusEventId === 'string' && focusEventId) {
+        // A feed that has moved on no longer holds the id; that is not a failure.
+        selectEvent(focusEventId, { fly: true });
+        return true;
+      }
+
+      let filtered = false;
+      if (Number.isInteger(params?.minSeverity)) {
+        const next = Math.max(0, Math.min(3, params.minSeverity));
+        if (next !== _minSeverity) {
+          _minSeverity = next;
+          filtered = true;
+        }
+      }
+      if (Number.isFinite(params?.sinceHours) && params.sinceHours >= 0) {
+        if (params.sinceHours !== _sinceHours) {
+          _sinceHours = params.sinceHours;
+          filtered = true;
+        }
+      }
+      if (filtered) renderEvents();
       return true;
     },
 
@@ -364,6 +457,9 @@ export function createEventsLayer({
         id: LAYER_ID,
         enabled: _enabled,
         events: _eventById.size,
+        total: _allEvents.length,
+        minSeverity: _minSeverity,
+        sinceHours: _sinceHours,
         selected: _selectedId,
         signature: _signature,
         lastUpdate: _lastUpdate,

@@ -1,6 +1,30 @@
 /**
  * Presentation model for the live hazard layer. Pure: no Cesium, no DOM.
+ *
+ * Times go through the i18n `Intl` helpers rather than hand-built strings, so
+ * they read correctly in every language. Component options are used instead of
+ * `dateStyle`/`timeStyle` because `Intl` rejects mixing those with
+ * `timeZoneName`, and the zone marker matters for a UTC-only feed.
  */
+import { formatDateTime } from '../../i18n/index.js';
+
+/** Full stamp with an explicit zone, for a card's validity window. */
+const STAMP = Object.freeze({
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZoneName: 'short',
+});
+/** Compact stamp for a one-line list row. */
+const COMPACT = Object.freeze({
+  year: '2-digit',
+  month: 'short',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
 
 /** World-overlay source id for this layer's detail cards. */
 export const EVENTS_OVERLAY_SOURCE_ID = 'hazard-events';
@@ -32,16 +56,10 @@ export function kindLabel(kind) {
 }
 
 function formatWindow(from, to) {
-  const start = Date.parse(from || '');
-  if (!Number.isFinite(start)) return null;
-  const startText = new Date(start)
-    .toISOString()
-    .slice(0, 16)
-    .replace('T', ' ');
-  const end = Date.parse(to || '');
-  if (!Number.isFinite(end)) return `${startText}Z`;
-  const endText = new Date(end).toISOString().slice(0, 16).replace('T', ' ');
-  return `${startText}Z → ${endText}Z`;
+  const start = formatDateTime(from, STAMP);
+  if (!start) return null;
+  const end = formatDateTime(to, STAMP);
+  return end ? `${start} → ${end}` : start;
 }
 
 /**
@@ -89,10 +107,7 @@ export function buildEventCard(event) {
  */
 export function eventListText(event) {
   const place = event.country || event.summary || '';
-  const stamp = Date.parse(event.from || '');
-  const when = Number.isFinite(stamp)
-    ? new Date(stamp).toISOString().slice(5, 16).replace('T', ' ')
-    : '';
+  const when = formatDateTime(event.from, COMPACT);
   return [String(event.severityLabel || '').toUpperCase(), place, when]
     .filter(Boolean)
     .join(' · ');

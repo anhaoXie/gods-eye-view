@@ -642,4 +642,7 @@ export const messages = Object.freeze({
   'Red alert': 'Alerta roja',
   'Orange alert': 'Alerta naranja',
   'Green / advisory': 'Verde / aviso',
+  never: 'sin actualizar',
+  'Any time': 'cualquier momento',
+  Today: 'hoy',
 });

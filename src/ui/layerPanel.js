@@ -1,5 +1,6 @@
 import { syncChipGroup } from './chipGroup.js';
 import { syncRowList } from './rowList.js';
+import { formatRelativeTime, onLocaleChange, t } from '../i18n/index.js';
 import { layerFeedState } from '../data/feedState.js';
 export { layerFeedState } from '../data/feedState.js';
 import { GUIDANCE_STATUSES } from '../loadingFeedback.js';
@@ -157,6 +158,12 @@ export class LayerPanel {
       setLayerParams: this.setLayerParams,
     });
     this._mountRecentImagery();
+    // Row extras are rebuilt from layer data, so their Intl-formatted stamps are
+    // baked in at build time and would otherwise keep the previous language
+    // until the next feed refresh. A language change re-syncs them.
+    this._removers.push(
+      onLocaleChange(() => this._scheduleRowControlsRefresh()),
+    );
     this._renderToggles();
   }
   /**
@@ -451,11 +458,20 @@ export class LayerPanel {
         swatch.className = 'data-toggle-legend-swatch';
         swatch.style.background = item.color;
         const text = document.createElement('span');
-        text.textContent =
-          item.count == null
-            ? String(item.label)
-            : `${item.label} ${this._formatCount(item.count)}`;
+        text.className = 'data-toggle-legend-label';
+        text.textContent = String(item.label);
         entry.append(swatch, text);
+        if (item.count != null) {
+          // The count rides in its own node so the label above stays an exact
+          // catalog match for the translator. The leading space keeps the
+          // rendered text identical to the previous single-node form, and a span
+          // is used rather than a bare text node because the DOM stubs in the
+          // test suite implement createElement but not createTextNode.
+          const count = document.createElement('span');
+          count.className = 'data-toggle-legend-count';
+          count.textContent = ` ${this._formatCount(item.count)}`;
+          entry.append(count);
+        }
         container.insertBefore(entry, info);
       }
       container._legendSignature = legendSignature;
@@ -561,7 +577,7 @@ export class LayerPanel {
     ) {
       return `${source} · ${stats.statusMessage.trim()}`;
     }
-    const ago = stats.lastUpdate ? this._timeAgo(stats.lastUpdate) : 'never';
+    const ago = stats.lastUpdate ? this._timeAgo(stats.lastUpdate) : t('never');
     if (stats.loading) {
       const loadingLabel =
         typeof stats.loadingLabel === 'string' && stats.loadingLabel.trim()
@@ -663,11 +679,16 @@ export class LayerPanel {
     return String(n);
   }
 
+  /**
+   * Relative age of a refresh, in the operator's language.
+   *
+   * `Intl.RelativeTimeFormat` is used rather than a hand-rolled English string:
+   * these labels are rebuilt on every repaint, so a catalog could never
+   * translate them.
+   * @param {number} timestamp
+   * @returns {string}
+   */
   _timeAgo(timestamp) {
-    const diff = Math.floor((Date.now() - timestamp) / 1000);
-    if (diff < 5) return 'just now';
-    if (diff < 60) return `${diff}s ago`;
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    return `${Math.floor(diff / 3600)}h ago`;
+    return formatRelativeTime(timestamp) || '';
   }
 }

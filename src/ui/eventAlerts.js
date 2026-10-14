@@ -8,13 +8,15 @@
  *
  * Copy written here is plain English so the i18n DOM pass translates it like any
  * other chrome. Dynamic values (titles, countries, magnitudes) simply miss the
- * catalog and are left verbatim.
+ * catalog and are left verbatim, and times go through `Intl` instead.
  */
+import { formatDateTime } from '../i18n/index.js';
 
 const KIND_LABEL = {
   earthquake: 'Earthquake',
   weather: 'Weather',
   disaster: 'Disaster',
+  natural: 'Natural event',
 };
 
 /** Marker accent for a 0..3 severity. Mirrors the layer's palette. */
@@ -27,13 +29,18 @@ export function alertAccent(severity) {
   return '#8a94a6';
 }
 
+/**
+ * Event time on a card, in the operator's language and always UTC.
+ *
+ * `Intl` rather than a hand-built "18:45Z": the string is rebuilt for every
+ * card, so a catalog could never translate it.
+ */
 function shortTime(value) {
-  const stamp = Date.parse(value || '');
-  if (!Number.isFinite(stamp)) return '';
-  const date = new Date(stamp);
-  return `${String(date.getUTCHours()).padStart(2, '0')}:${String(
-    date.getUTCMinutes(),
-  ).padStart(2, '0')}Z`;
+  return formatDateTime(value, {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  });
 }
 
 /**

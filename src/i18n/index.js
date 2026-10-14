@@ -65,6 +65,98 @@ const originalText = new WeakMap();
 /** Per-element original English attribute values, for the same reason. */
 const originalAttributes = new WeakMap();
 
+/**
+ * `Intl` formatters, keyed by locale and shape.
+ *
+ * Cached because a panel repaints far more often than the language changes, and
+ * building an `Intl` formatter is the expensive part.
+ */
+const formatters = new Map();
+function formatter(key, create) {
+  const cacheKey = `${current}\u0000${key}`;
+  let instance = formatters.get(cacheKey);
+  if (!instance) {
+    const htmlLang = getLocaleDescriptor().htmlLang;
+    instance = create(htmlLang);
+    formatters.set(cacheKey, instance);
+  }
+  return instance;
+}
+
+/** Coerce a timestamp of any accepted shape to milliseconds, or null. */
+function timestampOf(value) {
+  const stamp =
+    value instanceof Date
+      ? value.getTime()
+      : typeof value === 'number'
+        ? value
+        : Date.parse(String(value ?? ''));
+  return Number.isFinite(stamp) ? stamp : null;
+}
+
+/**
+ * A timestamp as locale-aware relative time ("now", "5s ago", "3m ago").
+ *
+ * These strings are rebuilt on every repaint, so no catalog can translate them.
+ * `Intl` both localizes them and removes the hand-rolled English forms.
+ * @param {number|string|Date} value
+ * @param {{now?: number}} [options]
+ * @returns {string} Empty when the value is not a usable timestamp.
+ */
+export function formatRelativeTime(value, { now = Date.now() } = {}) {
+  const stamp = timestampOf(value);
+  if (stamp === null) return '';
+  const seconds = Math.round((stamp - now) / 1000);
+  // `short`, not `narrow`: Russian's narrow form renders a past time as "-3 с",
+  // which reads as a negative quantity rather than "3 seconds ago".
+  const relative = formatter(
+    'relative',
+    (locale) =>
+      new Intl.RelativeTimeFormat(locale, { numeric: 'auto', style: 'short' }),
+  );
+  const magnitude = Math.abs(seconds);
+  if (magnitude < 60) return relative.format(seconds, 'second');
+  if (magnitude < 3600)
+    return relative.format(Math.round(seconds / 60), 'minute');
+  if (magnitude < 86400)
+    return relative.format(Math.round(seconds / 3600), 'hour');
+  return relative.format(Math.round(seconds / 86400), 'day');
+}
+
+/**
+ * A timestamp as locale-aware UTC date and time.
+ * @param {number|string|Date} value
+ * @param {Intl.DateTimeFormatOptions} [options]
+ * @returns {string} Empty when the value is not a usable timestamp.
+ */
+export function formatDateTime(value, options) {
+  const stamp = timestampOf(value);
+  if (stamp === null) return '';
+  const shape = { timeZone: 'UTC', ...options };
+  const dateTime = formatter(
+    `datetime:${JSON.stringify(shape)}`,
+    (locale) => new Intl.DateTimeFormat(locale, shape),
+  );
+  return dateTime.format(new Date(stamp));
+}
+
+/**
+ * A number in the active locale's grouping and decimal marks.
+ * @param {number|string} value
+ * @param {Intl.NumberFormatOptions} [options]
+ * @returns {string} Empty when the value is not finite.
+ */
+export function formatNumber(value, options) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '';
+  const shape = options ?? {};
+  const numberFormatter = formatter(
+    `number:${JSON.stringify(shape)}`,
+    (locale) => new Intl.NumberFormat(locale, shape),
+  );
+  return numberFormatter.format(number);
+}
+
 /** @returns {string} The active locale id. */
 export function getLocale() {
   return current;

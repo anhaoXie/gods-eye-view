@@ -597,4 +597,7 @@ export const messages = Object.freeze({
   'Red alert': '赤警報',
   'Orange alert': '橙警報',
   'Green / advisory': '緑 / 注意情報',
+  never: '未更新',
+  'Any time': '全期間',
+  Today: '今日',
 });

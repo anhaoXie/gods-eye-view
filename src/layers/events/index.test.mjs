@@ -178,7 +178,27 @@ test('the list line names the level, place and time', () => {
   const text = eventListText(makeEvent());
   assert.match(text, /^RED/);
   assert.match(text, /Mexico/);
-  assert.match(text, /01-02/);
+  // The stamp is Intl-formatted, so its exact shape depends on the locale; what
+  // must hold is that a time is present at all.
+  assert.match(text, /\d{1,2}:\d{2}/, `expected a time in "${text}"`);
+});
+
+test('the card window is Intl-formatted and marks the zone', () => {
+  const card = buildEventCard(makeEvent());
+  const window = card.details[0];
+  assert.match(window, /\d{1,2}:\d{2}/, `expected a time in "${window}"`);
+  assert.match(window, /UTC|GMT/, `expected a zone marker in "${window}"`);
+  // An open-ended event shows only its start.
+  assert.ok(!window.includes('→'), 'a single-ended window has no arrow');
+  const range = buildEventCard(
+    makeEvent({ to: '2026-01-05T06:00:00.000Z' }),
+  ).details[0];
+  assert.match(range, /→/, 'a closed window shows both ends');
+  const noStart = buildEventCard(makeEvent({ from: null })).details;
+  assert.ok(
+    !noStart.some((line) => line.includes('→')),
+    'an event with no start date has no window at all',
+  );
 });
 
 test('normalization rejects unplaceable and malformed events', () => {
@@ -448,7 +468,15 @@ test('the legend labels stay translatable rather than embedding counts', async (
   layer.enable();
   await layer.update(viewer);
   const controls = layer.getRowControls();
-  assert.equal(controls.chips, undefined, 'count chips are dynamic copy');
+  // Chips are filter intents, so every label must be a plain catalog key. A
+  // count baked into a label ("19 red") could never be translated.
+  for (const chip of controls.chips) {
+    assert.match(
+      chip.label,
+      /^[A-Za-z /]+$/,
+      `chip ${chip.id} label must be translatable copy`,
+    );
+  }
   const labels = controls.legend.map((entry) => entry.label);
   assert.deepEqual(labels, ['Red alert', 'Orange alert', 'Green / advisory']);
   for (const entry of controls.legend) {
@@ -456,6 +484,76 @@ test('the legend labels stay translatable rather than embedding counts', async (
     assert.match(entry.label, /^[A-Za-z /]+$/, 'no digits in the label');
   }
   layer.destroy(viewer);
+});
+
+test('severity and time filters redraw only the matching events', async () => {
+  const now = Date.now();
+  const fresh = new Date(now - 60_000).toISOString();
+  const week = new Date(now - 5 * 86_400_000).toISOString();
+  const { layer, viewer, entries, cleared } = harness({
+    events: [
+      makeEvent({ id: 'red', severity: 3, from: fresh }),
+      makeEvent({ id: 'orange', severity: 2, from: fresh }),
+      makeEvent({ id: 'green', severity: 1, from: fresh }),
+      makeEvent({ id: 'stale', severity: 3, from: week }),
+    ],
+  });
+  layer.init(viewer);
+  layer.enable();
+  await layer.update(viewer);
+  assert.equal(layer.getDiagnostics().events, 4);
+
+  const chips = layer.getRowControls().chips;
+  assert.deepEqual(
+    chips.map((chip) => chip.id),
+    [
+      'events-severity-all',
+      'events-severity-orange',
+      'events-severity-red',
+      'events-window-any',
+      'events-window-day',
+    ],
+    'chips are keyed, so the panel can reuse them',
+  );
+  assert.equal(chips[0].active, true, 'everything is shown by default');
+  assert.deepEqual(chips[2].params, { minSeverity: 3 });
+
+  layer.setParams({ minSeverity: 3 });
+  let diagnostics = layer.getDiagnostics();
+  assert.equal(diagnostics.events, 2, 'only the two red events are drawn');
+  assert.equal(diagnostics.total, 4, 'the rest are retained, not discarded');
+  assert.equal(
+    viewer.added[0].entities.list.length,
+    2,
+    'and the globe agrees with the count',
+  );
+  assert.equal(layer.getRowControls().chips[2].active, true);
+
+  layer.setParams({ minSeverity: 0, sinceHours: 24 });
+  diagnostics = layer.getDiagnostics();
+  assert.equal(diagnostics.events, 3, 'the five-day-old event drops out');
+  assert.equal(diagnostics.sinceHours, 24);
+
+  // A filter that hides the selection withdraws its card with it.
+  layer.setParams({ minSeverity: 0, sinceHours: 0 });
+  layer.setParams({ focusEventId: 'green' });
+  assert.equal(entries.length, 1, 'the card was published');
+  layer.setParams({ minSeverity: 2 });
+  assert.ok(cleared.length > 0, 'and withdrawn once its event is filtered out');
+  assert.equal(layer.getDiagnostics().selected, null);
+
+  // An event with no usable date survives a time filter: the feed could not
+  // prove it is old, and hiding a hazard is worse than showing a stale one.
+  layer.destroy(viewer);
+  const undated = harness({
+    events: [makeEvent({ id: 'undated', severity: 3, from: null })],
+  });
+  undated.layer.init(undated.viewer);
+  undated.layer.enable();
+  await undated.layer.update(undated.viewer);
+  undated.layer.setParams({ sinceHours: 24 });
+  assert.equal(undated.layer.getDiagnostics().events, 1);
+  undated.layer.destroy(undated.viewer);
 });
 
 test('row controls and analyst records describe the loaded events', async () => {

@@ -8,6 +8,9 @@ import {
 } from './messages.js';
 import {
   availableLocales,
+  formatDateTime,
+  formatNumber,
+  formatRelativeTime,
   getLocale,
   getLocaleDescriptor,
   initI18n,
@@ -103,6 +106,67 @@ test('English resolves every source string to itself', () => {
     }
   }
   assert.deepEqual(failures, []);
+});
+
+test('relative times come from Intl, so every language reads correctly', () => {
+  // Repaint-built strings can never be catalogued, so they must be localized by
+  // Intl instead of hand-rolled English.
+  const now = Date.UTC(2026, 0, 2, 3, 0, 0);
+  withLocale('en', () => {
+    assert.equal(formatRelativeTime(now, { now }), 'now');
+    assert.equal(formatRelativeTime(now - 3_000, { now }), '3 sec. ago');
+    assert.equal(formatRelativeTime(now - 300_000, { now }), '5 min. ago');
+    assert.equal(formatRelativeTime(now - 7_200_000, { now }), '2 hr. ago');
+  });
+  withLocale('zh', () => {
+    assert.equal(formatRelativeTime(now - 300_000, { now }), '5分钟前');
+  });
+  withLocale('ru', () => {
+    // The narrow style would render "-3 с" here, which is why `short` is used.
+    assert.equal(formatRelativeTime(now - 3_000, { now }), '3 сек. назад');
+    assert.doesNotMatch(formatRelativeTime(now - 3_000, { now }), /^-/);
+  });
+  assert.equal(formatRelativeTime('not a timestamp'), '');
+  assert.equal(formatRelativeTime(undefined), '');
+  assert.equal(formatRelativeTime(null), '');
+});
+
+test('absolute stamps are UTC and follow the locale', () => {
+  const stamp = Date.UTC(2026, 0, 2, 3, 4, 5);
+  // Component options, because Intl rejects dateStyle/timeStyle combined with
+  // timeZoneName — and the zone marker matters for a UTC-only feed.
+  const shape = {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  };
+  withLocale('en', () =>
+    assert.equal(formatDateTime(stamp, shape), '01/02/2026, 03:04 AM UTC'),
+  );
+  withLocale('ru', () =>
+    assert.equal(formatDateTime(stamp, shape), '02.01.2026, 03:04 UTC'),
+  );
+  assert.equal(formatDateTime('nope'), '');
+  assert.equal(formatDateTime(NaN), '');
+});
+
+test('numbers follow the locale grouping and decimal marks', () => {
+  withLocale('en', () =>
+    assert.equal(formatNumber(1234567.5), '1,234,567.5'),
+  );
+  withLocale('ru', () => {
+    const text = formatNumber(1234567.5);
+    assert.notEqual(text, '1,234,567.5', 'grouping differs from English');
+    assert.match(text, /,\d$/, 'and the decimal mark is a comma');
+  });
+  withLocale('es', () => {
+    assert.notEqual(formatNumber(1234567.5), '1,234,567.5');
+    assert.match(formatNumber(1234567.5), /,\d$/);
+  });
+  assert.equal(formatNumber('not a number'), '');
 });
 
 test('English is the identity locale', () => {
