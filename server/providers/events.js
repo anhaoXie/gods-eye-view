@@ -19,6 +19,8 @@ const USGS_URL =
   'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson';
 const NWS_URL =
   'https://api.weather.gov/alerts/active?message_type=alert&severity=Extreme,Severe';
+const EONET_URL =
+  'https://eonet.gsfc.nasa.gov/api/v3/events?status=open&days=20';
 
 const CACHE_TTL_MS = 10 * 60_000;
 const UPSTREAM_TIMEOUT_MS = 20_000;
@@ -221,6 +223,88 @@ function rankEvents(events) {
 }
 
 /**
+ * EONET categories worth showing as hazards.
+ *
+ * NASA tracks many natural phenomena; sea/lake ice and water colour are science
+ * observations rather than hazards, so they are excluded here.
+ */
+const EONET_HAZARDS = Object.freeze({
+  wildfires: { type: 'wildfire', severity: 2 },
+  severeStorms: { type: 'severe-storm', severity: 2 },
+  volcanoes: { type: 'volcano', severity: 2 },
+  floods: { type: 'flood', severity: 2 },
+  landslides: { type: 'landslide', severity: 2 },
+  drought: { type: 'drought', severity: 1 },
+  dustHaze: { type: 'dust-haze', severity: 1 },
+  snow: { type: 'snow', severity: 1 },
+  temperatureExtremes: { type: 'temperature-extreme', severity: 1 },
+  manmade: { type: 'manmade', severity: 1 },
+});
+
+/**
+ * Parse NASA EONET into normalized events.
+ *
+ * EONET carries no official alert level, so severity here is only a triage
+ * classification and never reaches 3 — red stays reserved for an official GDACS
+ * red alert, an Extreme NWS warning or an M6+ earthquake.
+ * @param {object} payload
+ * @returns {object[]}
+ */
+export function parseEonet(payload) {
+  const features = Array.isArray(payload?.events) ? payload.events : [];
+  const events = [];
+  for (const feature of features) {
+    const categories = Array.isArray(feature?.categories)
+      ? feature.categories
+      : [];
+    const named = categories.find((category) => EONET_HAZARDS[category?.id]);
+    if (!named) continue;
+    const hazard = EONET_HAZARDS[named.id];
+    // `geometry` is a dated history, so the newest fix is where the event is now.
+    const geometry = [...(feature.geometry || [])]
+      .filter((entry) => Array.isArray(entry?.coordinates))
+      .sort(
+        (a, b) =>
+          (Date.parse(a.date || '') || 0) - (Date.parse(b.date || '') || 0),
+      )
+      .pop();
+    const lon = finite(geometry?.coordinates?.[0]);
+    const lat = finite(geometry?.coordinates?.[1]);
+    if (lon === null || lat === null) continue;
+    const magnitude = finite(geometry.magnitudeValue);
+    const unit = trim(geometry.magnitudeUnit, 16);
+    const reported =
+      Array.isArray(feature.sources) && feature.sources[0]?.url
+        ? feature.sources[0].url
+        : typeof feature.link === 'string'
+          ? feature.link
+          : null;
+    events.push({
+      id: `eonet-${feature.id}`,
+      kind: 'natural',
+      type: hazard.type,
+      source: 'NASA EONET',
+      title: trim(feature.title, 180),
+      // The magnitude unit is acres for fires and knots for storms, so it reads
+      // as prose rather than as the numeric magnitude field.
+      summary: magnitude !== null && unit ? `${magnitude} ${unit}` : '',
+      severity: hazard.severity,
+      severityLabel: trim(named.title, 24),
+      // EONET's magnitude is acres or knots, never a seismic magnitude, so the
+      // numeric field stays empty and the value lives in `summary` instead.
+      magnitude: null,
+      lon,
+      lat,
+      country: '',
+      from: typeof geometry.date === 'string' ? geometry.date : null,
+      to: null,
+      url: reported,
+    });
+  }
+  return events;
+}
+
+/**
  * Build the aggregated feed.
  * @param {{fetchImpl?: typeof fetch, now?: () => number}} [options]
  * @returns {Promise<object>} Normalized feed payload.
@@ -246,6 +330,12 @@ export async function collectEvents({
         'User-Agent': 'gods-eye-view-events/1.0 (local research build)',
       },
       parse: parseNws,
+    },
+    {
+      id: 'EONET',
+      url: EONET_URL,
+      headers: { Accept: 'application/json' },
+      parse: parseEonet,
     },
   ];
 

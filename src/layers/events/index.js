@@ -40,6 +40,7 @@ function pickedEventId(picked) {
  * @param {((viewer: object) => object) | null} [options.screenSpaceEventHandlerFactory]
  * @param {object | null} [options.picking]
  * @param {{isPointerFree?: () => boolean} | null} [options.pointer]
+ * @param {((url: string) => void) | null} [options.openExternal] Opens a provider report page.
  * @param {object} [options.cesium]
  * @returns {object} Layer module.
  */
@@ -49,6 +50,7 @@ export function createEventsLayer({
   screenSpaceEventHandlerFactory = null,
   picking = null,
   pointer = null,
+  openExternal = null,
   cesium = Cesium,
 } = {}) {
   if (!source?.getSnapshot) throw new Error('Events layer needs a source');
@@ -133,7 +135,13 @@ export function createEventsLayer({
     const cardHit = overlayHost?.hitTest?.(click.position.x, click.position.y, {
       sourceId: EVENTS_OVERLAY_SOURCE_ID,
     });
-    if (cardHit) return;
+    if (cardHit) {
+      // The card is canvas-painted, so a click on it is the only way to reach
+      // the provider's own report page.
+      const selected = _selectedId ? _eventById.get(_selectedId) : null;
+      if (selected?.url) openExternal?.(selected.url);
+      return;
+    }
 
     const picked = _viewer.scene.pick(click.position);
     const eventId = pickedEventId(picked);
@@ -171,7 +179,7 @@ export function createEventsLayer({
     id: LAYER_ID,
     name: 'Global Events',
     icon: '⚠',
-    source: 'GDACS · USGS · NWS',
+    source: 'GDACS · USGS · NWS · NASA EONET',
     updateInterval: 600_000,
 
     /** @param {object} viewer */
@@ -266,7 +274,7 @@ export function createEventsLayer({
         count: _eventById.size,
         lastUpdate: _lastUpdate,
         error: _lastError,
-        source: 'GDACS · USGS · NWS',
+        source: 'GDACS · USGS · NWS · NASA EONET',
       };
     },
 

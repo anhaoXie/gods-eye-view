@@ -17,6 +17,7 @@ export function createApplicationEvents(options) {
       new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas),
     picking,
     pointer: { isPointerFree },
+    openExternal: (url) => window.open(url, '_blank', 'noopener,noreferrer'),
     ...options,
   });
 }

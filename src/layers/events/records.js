@@ -7,7 +7,7 @@
  * cannot vouch for.
  */
 
-const KINDS = new Set(['earthquake', 'weather', 'disaster']);
+const KINDS = new Set(['earthquake', 'weather', 'disaster', 'natural']);
 
 function finiteCoordinate(value, limit) {
   const number = Number(value);

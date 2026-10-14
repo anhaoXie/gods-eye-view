@@ -33,6 +33,19 @@ for (const locale of LOCALES) {
   REVERSE.set(locale.id, reverse);
 }
 
+/**
+ * Every English source string any catalog is keyed by.
+ *
+ * A string in this set is English copy, never a translation, which is what lets
+ * a language reuse an English-looking word without hijacking it (see
+ * `englishExact`).
+ */
+const ENGLISH_KEYS = new Set();
+for (const locale of LOCALES) {
+  for (const key of Object.keys(MESSAGES[locale.id] || {}))
+    ENGLISH_KEYS.add(key);
+}
+
 let current = DEFAULT_LOCALE;
 const listeners = new Set();
 let observer = null;
@@ -85,6 +98,12 @@ const STATUS_TOKENS = new Set([
 
 /** Exact reverse lookup: a translated string back to its English source. */
 function englishExact(value) {
+  // An English source string is its own translation. Some languages render two
+  // English variants identically (Spanish uses "Radio" for both RADIO and
+  // Radio), so without this the reverse map would rewrite the English UI's
+  // "Radio" as "RADIO" whenever a node was added while another language was
+  // active and later reverted.
+  if (ENGLISH_KEYS.has(value)) return value;
   for (const locale of LOCALES) {
     const source = REVERSE.get(locale.id)?.get(value);
     if (source !== undefined) return source;

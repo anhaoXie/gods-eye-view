@@ -118,16 +118,19 @@ function harness(snapshot, options = {}) {
       return snapshot;
     },
   };
+  // Exposed so a test can simulate a click landing on the published card.
+  const overlayHost = {
+    setEntries: (id, list, opts) => entries.push({ id, list, opts }),
+    clearSource: (id) => cleared.push(id),
+    setVisible: (id, visible) => visibility.push({ id, visible }),
+    hitTest: () => null,
+  };
   const layer = createEventsLayer({
     source,
     cesium,
     screenSpaceEventHandlerFactory: (viewer) =>
       new cesium.ScreenSpaceEventHandler(viewer.scene.canvas),
-    overlayHost: {
-      setEntries: (id, list, opts) => entries.push({ id, list, opts }),
-      clearSource: (id) => cleared.push(id),
-      setVisible: (id, visible) => visibility.push({ id, visible }),
-    },
+    overlayHost,
     pointer: { isPointerFree: () => true },
     picking: {
       resolvePickId: (picked) => picked?.id ?? null,
@@ -136,7 +139,16 @@ function harness(snapshot, options = {}) {
     ...options,
   });
   const viewer = makeViewer();
-  return { layer, viewer, source, handlers, entries, cleared, visibility };
+  return {
+    layer,
+    viewer,
+    source,
+    handlers,
+    entries,
+    cleared,
+    visibility,
+    overlayHost,
+  };
 }
 
 test('severity maps to a stable accent and a readable kind', () => {
@@ -340,6 +352,59 @@ test('selecting an event publishes exactly one card, and clearing removes it', a
   assert.deepEqual(cleared, [EVENTS_OVERLAY_SOURCE_ID]);
   assert.equal(layer.getDiagnostics().selected, null);
 
+  layer.destroy(viewer);
+});
+
+test('clicking the open card sends the operator to the provider report', async () => {
+  const opened = [];
+  const { layer, viewer, handlers, overlayHost } = harness(
+    {
+      events: [
+        makeEvent({
+          url: 'https://www.gdacs.org/report.aspx?eventid=1001325',
+        }),
+      ],
+    },
+    { openExternal: (url) => opened.push(url) },
+  );
+  layer.init(viewer);
+  layer.enable();
+  await layer.update(viewer);
+
+  const entityId = viewer.added[0].entities.list[0].id;
+  viewer.scene.pick = () => ({ id: entityId });
+  handlers[0].click({ position: { x: 10, y: 20 } });
+  assert.deepEqual(opened, [], 'selecting must not open a page');
+  assert.equal(layer.getDiagnostics().selected, 'gdacs-TC-1-0');
+
+  // A later click lands on the published card, the only link surface a
+  // canvas-painted card can offer.
+  overlayHost.hitTest = () => ({ entryId: 'card' });
+  viewer.scene.pick = () => null;
+  handlers[0].click({ position: { x: 10, y: 20 } });
+  assert.deepEqual(opened, [
+    'https://www.gdacs.org/report.aspx?eventid=1001325',
+  ]);
+  assert.equal(
+    layer.getDiagnostics().selected,
+    'gdacs-TC-1-0',
+    'opening the source keeps the selection',
+  );
+  layer.destroy(viewer);
+});
+
+test('a card for an event with no provider page has nothing to open', async () => {
+  const opened = [];
+  const { layer, viewer, handlers, overlayHost } = harness(
+    { events: [makeEvent({ url: null })] },
+    { openExternal: (url) => opened.push(url) },
+  );
+  layer.init(viewer);
+  layer.enable();
+  await layer.update(viewer);
+  overlayHost.hitTest = () => ({ entryId: 'card' });
+  handlers[0].click({ position: { x: 10, y: 20 } });
+  assert.deepEqual(opened, []);
   layer.destroy(viewer);
 });
 

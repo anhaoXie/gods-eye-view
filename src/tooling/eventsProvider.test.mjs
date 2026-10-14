@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   collectEvents,
   eventsProxy,
+  parseEonet,
   parseGdacs,
   parseNws,
   parseUsgs,
@@ -210,10 +211,11 @@ test('a failing source degrades the feed instead of failing it', async () => {
       if (url.includes('gdacs')) throw new Error('gdacs down');
       if (url.includes('usgs')) return jsonResponse({ features: [usgsFeature()] });
       if (url.includes('weather.gov')) return jsonResponse({ features: [] });
+      if (url.includes('eonet')) return jsonResponse({ events: [] });
       throw new Error(`unexpected ${url}`);
     },
   });
-  assert.equal(seen.length, 3, 'every source is attempted');
+  assert.equal(seen.length, 4, 'every source is attempted');
   assert.equal(feed.count, 1);
   const byId = Object.fromEntries(feed.sources.map((s) => [s.id, s]));
   assert.equal(byId.GDACS.ok, false);
@@ -221,6 +223,7 @@ test('a failing source degrades the feed instead of failing it', async () => {
   assert.equal(byId.USGS.ok, true);
   assert.equal(byId.USGS.count, 1);
   assert.equal(byId.NWS.ok, true);
+  assert.equal(byId.EONET.ok, true);
   assert.ok(feed.generatedAt);
 });
 
@@ -266,6 +269,82 @@ test('losing every source is an outage, not an empty world', async () => {
     /all hazard sources failed/,
     'an empty feed must not be mistaken for a quiet planet',
   );
+});
+
+test('EONET hazards are classified but never raise a red alert', () => {
+  const events = parseEonet({
+    events: [
+      {
+        id: 'EONET_1',
+        title: 'Wildfire Buckhorn 2, Cassia, Idaho',
+        categories: [{ id: 'wildfires', title: 'Wildfires' }],
+        sources: [{ id: 'InciWeb', url: 'https://inciweb.example/fire/1' }],
+        geometry: [
+          { date: '2026-10-09T00:00:00Z', type: 'Point', coordinates: [-114, 42] },
+          {
+            date: '2026-10-10T00:00:00Z',
+            type: 'Point',
+            coordinates: [-114.102967, 42.337217],
+            magnitudeValue: 2000,
+            magnitudeUnit: 'acres',
+          },
+        ],
+      },
+      {
+        id: 'EONET_2',
+        title: 'Severe Storm over the Pacific',
+        categories: [{ id: 'severeStorms', title: 'Severe Storms' }],
+        geometry: [
+          { date: '2026-10-11T00:00:00Z', type: 'Point', coordinates: [140, 20] },
+        ],
+      },
+      {
+        // A science observation, not a hazard: excluded on purpose.
+        id: 'EONET_3',
+        title: 'Iceberg A-84',
+        categories: [{ id: 'seaLakeIce', title: 'Sea and Lake Ice' }],
+        geometry: [
+          { date: '2026-10-11T00:00:00Z', type: 'Point', coordinates: [-40, -70] },
+        ],
+      },
+    ],
+  });
+
+  assert.equal(events.length, 2, 'only hazard categories are admitted');
+  const fire = events[0];
+  assert.equal(fire.kind, 'natural');
+  assert.equal(fire.type, 'wildfire');
+  assert.equal(fire.severity, 2);
+  assert.ok(fire.severity < 3, 'EONET has no alert level, so never red');
+  assert.equal(fire.severityLabel, 'Wildfires');
+  assert.equal(fire.lat, 42.337217, 'the newest fix wins');
+  assert.equal(fire.lon, -114.102967);
+  assert.equal(fire.summary, '2000 acres', 'the unit keeps the number honest');
+  assert.equal(fire.source, 'NASA EONET');
+  assert.equal(fire.url, 'https://inciweb.example/fire/1');
+  assert.equal(fire.magnitude, null, 'acres must not masquerade as a magnitude');
+  assert.equal(events[1].type, 'severe-storm');
+});
+
+test('EONET events without a usable fix are dropped, and an unknown category too', () => {
+  const events = parseEonet({
+    events: [
+      { id: 'a', categories: [{ id: 'wildfires', title: 'Wildfires' }] },
+      {
+        id: 'b',
+        categories: [{ id: 'wildfires', title: 'Wildfires' }],
+        geometry: [{ date: '2026-01-01T00:00:00Z', type: 'Point' }],
+      },
+      {
+        id: 'c',
+        categories: [{ id: 'waterColor', title: 'Water Color' }],
+        geometry: [
+          { date: '2026-01-01T00:00:00Z', type: 'Point', coordinates: [1, 2] },
+        ],
+      },
+    ],
+  });
+  assert.deepEqual(events, []);
 });
 
 test('the feed is ranked by severity and capped', async () => {
@@ -318,6 +397,7 @@ test('the route caches a fetch and reuses it', async () => {
           return jsonResponse({ features: [usgsFeature()] });
         if (url.includes('gdacs'))
           return jsonResponse({ features: [gdacsFeature()] });
+        if (url.includes('eonet')) return jsonResponse({ events: [] });
         return jsonResponse({ features: [] });
       },
       now: () => 1_000,
@@ -328,11 +408,11 @@ test('the route caches a fetch and reuses it', async () => {
   assert.equal(first.statusCode, 200);
   assert.equal(first.headers['x-events-cache'], 'MISS');
   assert.equal(JSON.parse(first.body).count, 2);
-  assert.equal(calls, 3, 'one request per source');
+  assert.equal(calls, 4, 'one request per source');
 
   const second = await send('/api/events');
   assert.equal(second.headers['x-events-cache'], 'HIT');
-  assert.equal(calls, 3, 'a cached response costs no upstream calls');
+  assert.equal(calls, 4, 'a cached response costs no upstream calls');
 });
 
 test('a stale cache is served when the upstreams fail', async () => {

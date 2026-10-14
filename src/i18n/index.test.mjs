@@ -60,6 +60,51 @@ test('every non-default locale carries a substantial catalog', () => {
   }
 });
 
+test('every catalog covers exactly the same keys', () => {
+  const reference = Object.keys(MESSAGES.zh).sort();
+  assert.ok(reference.length > 500);
+  for (const locale of LOCALES) {
+    if (locale.id === DEFAULT_LOCALE) continue;
+    assert.deepEqual(
+      Object.keys(MESSAGES[locale.id]).sort(),
+      reference,
+      `${locale.id} does not cover the same strings`,
+    );
+  }
+});
+
+test('every catalog is genuinely translated, not a copy of English', () => {
+  for (const locale of LOCALES) {
+    if (locale.id === DEFAULT_LOCALE) continue;
+    const table = MESSAGES[locale.id];
+    const keys = Object.keys(table);
+    const identical = keys.filter((key) => table[key] === key);
+    // Acronyms and brand names legitimately survive verbatim, but a table that
+    // mostly echoes English is a stub, not a translation.
+    assert.ok(
+      identical.length < keys.length * 0.25,
+      `${locale.id} leaves ${identical.length}/${keys.length} strings in English`,
+    );
+  }
+});
+
+test('English resolves every source string to itself', () => {
+  // Some languages keep an English-looking word (Spanish "Radio" is also the
+  // Spanish word) and others render two English variants identically. Either way
+  // the English identity must hold for every key, or a node added while another
+  // language was active would come back as the wrong variant.
+  setLocale(DEFAULT_LOCALE);
+  const failures = [];
+  for (const locale of LOCALES) {
+    if (locale.id === DEFAULT_LOCALE) continue;
+    for (const key of Object.keys(MESSAGES[locale.id])) {
+      const back = t(key);
+      if (back !== key) failures.push(`${locale.id}: ${key} -> ${back}`);
+    }
+  }
+  assert.deepEqual(failures, []);
+});
+
 test('English is the identity locale', () => {
   withLocale(DEFAULT_LOCALE, () => {
     assert.equal(t('Live Flights'), 'Live Flights');

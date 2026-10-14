@@ -22,6 +22,8 @@ export function kindLabel(kind) {
       return 'Earthquake';
     case 'weather':
       return 'Weather';
+    case 'natural':
+      return 'Natural event';
     case 'disaster':
       return 'Disaster';
     default:
@@ -61,6 +63,9 @@ export function buildEventCard(event) {
   details.push(
     `${event.source} · ${String(event.severityLabel || '').toUpperCase()}`,
   );
+  // The card is painted on a shared canvas, so it cannot hold a real anchor;
+  // clicking it opens the provider page instead (see the layer's click handler).
+  if (event.url) details.push('Click to open the source');
 
   return {
     id: `${EVENTS_OVERLAY_SOURCE_ID}:${event.id}`,
@@ -72,6 +77,7 @@ export function buildEventCard(event) {
     paintLane: 'ambient-card',
     priority: 10 + Number(event.severity || 0),
     interactive: true,
+    activate: event.url ? () => event.url : null,
     accessibilityLabel: `${kindLabel(event.kind)}: ${event.title}`,
   };
 }
