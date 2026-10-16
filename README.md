@@ -1,3 +1,29 @@
+> ### Fork notice
+>
+> This repository is a modified distribution of **[bilawalsidhu/gods-eye-view](https://github.com/bilawalsidhu/gods-eye-view)**
+> by **Bilawal Sidhu**, used under its **MIT license**. The upstream `LICENSE` and
+> `THIRD_PARTY_NOTICES.md` are kept unmodified, and everything below this notice is
+> upstream's own README text and media.
+>
+> **What this fork adds** (relative to the 0.2.1 snapshot it was cut from):
+>
+> - An interface localization system — five languages, with the chosen language carried across share links
+> - A new global real-time hazard layer: GDACS, USGS, NWS and NASA EONET
+> - Actionable per-event alert cards in the side panel
+> - Weather-tile sharpness: the zoom ceiling now follows each product's documented source resolution
+> - Hazard markers no longer draw through the globe
+> - Localized time and number formatting, plus severity and time filters
+>
+> This is a **snapshot, not a tracking branch.** Upstream was at PR #1121 when this was cut and
+> has moved on since. Verified locally on 2026-10-16: `6415 tests, 6405 pass, 0 fail, 10 skipped`
+> (~115 s), plus two separate performance suites at 1/1 and 13/13.
+>
+> *中文：本仓库基于 [bilawalsidhu/gods-eye-view](https://github.com/bilawalsidhu/gods-eye-view) 修改而来。
+> 上游以 MIT 许可发布，原作者为 Bilawal Sidhu。原 `LICENSE` 与 `THIRD_PARTY_NOTICES.md` 原样保留，
+> 以下正文与素材均为上游原文。本仓库是上游 0.2.1 的快照，不跟随上游更新。*
+
+---
+
 <div align="center">
 
 # 🌐 God's Eye View
