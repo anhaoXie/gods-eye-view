@@ -73,19 +73,38 @@ function finite(value) {
 /** Average of a polygon's outer ring, good enough to anchor a marker. */
 function ringCentroid(ring) {
   if (!Array.isArray(ring) || ring.length === 0) return null;
+  // GeoJSON rings repeat the first vertex at the end. Keeping it would drag the
+  // mean toward that vertex, so compare the endpoints and drop the duplicate.
+  const first = ring[0];
+  const last = ring[ring.length - 1];
+  const closed =
+    ring.length > 1 && first?.[0] === last?.[0] && first?.[1] === last?.[1];
+  const points = closed ? ring.slice(0, -1) : ring;
+
+  let referenceLon = null;
   let sumLon = 0;
   let sumLat = 0;
   let count = 0;
-  for (const point of ring) {
+  for (const point of points) {
     const lon = finite(point?.[0]);
     const lat = finite(point?.[1]);
     if (lon === null || lat === null) continue;
-    sumLon += lon;
+    if (referenceLon === null) referenceLon = lon;
+    // Unwrap each vertex around the first one: a ring that straddles ±180 must
+    // not average 179.5°E and 179.5°W into a point near 0° (the Atlantic), which
+    // is the opposite side of the planet from the storm.
+    let delta = lon - referenceLon;
+    if (delta > 180) delta -= 360;
+    else if (delta < -180) delta += 360;
+    sumLon += delta;
     sumLat += lat;
     count += 1;
   }
   if (!count) return null;
-  return { lon: sumLon / count, lat: sumLat / count };
+  return {
+    lon: ((referenceLon + sumLon / count + 540) % 360) - 180,
+    lat: sumLat / count,
+  };
 }
 
 /** Anchor for any GeoJSON geometry: first usable point or polygon centroid. */

@@ -203,6 +203,66 @@ test('weather alerts without geometry are unusable and skipped', () => {
   assert.equal(events[0].lon, -93.5);
 });
 
+test('a polygon that straddles the antimeridian anchors on the correct side', () => {
+  const events = parseNws({
+    features: [
+      {
+        id: 'antimeridian-alert',
+        geometry: {
+          type: 'Polygon',
+          coordinates: [
+            [
+              [179.5, 51],
+              [-179.5, 51],
+              [-179.5, 49],
+              [179.5, 49],
+              [179.5, 51],
+            ],
+          ],
+        },
+        properties: {
+          event: 'Tsunami Warning',
+          severity: 'Extreme',
+          areaDesc: 'North Pacific',
+        },
+      },
+    ],
+  });
+  assert.equal(events.length, 1);
+  // Averaging the raw longitudes would put the marker at 0° — the Atlantic —
+  // which is the opposite side of the planet from this polygon.
+  assert.ok(
+    Math.abs(events[0].lon) > 179,
+    `expected the marker near ±180, got ${events[0].lon}`,
+  );
+  assert.ok(Math.abs(events[0].lat - 50) < 0.5);
+});
+
+test('a closed ring does not drag the centroid toward its first vertex', () => {
+  const events = parseNws({
+    features: [
+      {
+        id: 'closed-ring-alert',
+        geometry: {
+          type: 'Polygon',
+          coordinates: [
+            [
+              [-5, 51],
+              [5, 51],
+              [5, 49],
+              [-5, 49],
+              [-5, 51],
+            ],
+          ],
+        },
+        properties: { event: 'Flood Warning', severity: 'Moderate' },
+      },
+    ],
+  });
+  assert.equal(events[0].lon, 0);
+  assert.equal(events[0].lat, 50);
+});
+
 test('a failing source degrades the feed instead of failing it', async () => {
   const seen = [];
   const feed = await collectEvents({
